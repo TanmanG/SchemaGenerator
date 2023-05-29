@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SchemaGenerator", "SchemaGenerator.csproj", "{F6DC3085-4A08-474A-9A38-929252DE13BD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F6DC3085-4A08-474A-9A38-929252DE13BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6DC3085-4A08-474A-9A38-929252DE13BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6DC3085-4A08-474A-9A38-929252DE13BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6DC3085-4A08-474A-9A38-929252DE13BD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {40C41C73-FF2D-4F66-8425-A0C8D1C2C734}
+	EndGlobalSection
+EndGlobal

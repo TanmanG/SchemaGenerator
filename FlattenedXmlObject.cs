@@ -4,20 +4,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SchemaGenerator
+public class XElementStatistics
 {
-    internal class XElementStatistics
-    {
-        public readonly string key;
-        public int depth = -1;
-        public readonly HashSet<string> possibleValues = new();
-        public readonly HashSet<string> possibleAttributes = new();
-        public readonly HashSet<string> possibleParents = new();
-        public readonly HashSet<string> possibleChildren = new();
+    public readonly string key;
+    public int depth = -1;
 
-        public XElementStatistics(string key)
-        {
-            this.key = key; 
-        }
+    public bool isComplex;
+    public bool isLi;
+
+    public HashSet<string> possibleValues = new();
+    public HashSet<string> possibleAttributes = new();
+    public HashSet<string> possibleParents = new();
+    public HashSet<string> possibleChildren = new();
+
+    public XElementStatistics(string key, bool isLi)
+    {
+        this.key = key;
+        this.isLi = isLi;
     }
 }

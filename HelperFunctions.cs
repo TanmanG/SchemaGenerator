@@ -36,10 +36,10 @@ public class HelperFunctions
     /// <param name="end">The line to stop on, -1 will continue until the end of the file.</param>
     public static void MoveDocumentLines(string file, int start, int destination, int end = -1)
     {
-        List<string> lines = new List<string>();
+        List<string> lines = new();
 
         // Read all lines from the document
-        using (StreamReader reader = new StreamReader(file))
+        using (StreamReader reader = new(file))
         {
             string? line;
             while ((line = reader.ReadLine()) != null)
@@ -58,7 +58,7 @@ public class HelperFunctions
         if (start > 0 && start <= lines.Count && destination > 0 && destination <= lines.Count)
         {
             // Extract the lines to be moved
-            List<string> movedLines = new List<string>();
+            List<string> movedLines = new();
             for (int i = start - 1; i < end; i++)
             {
                 movedLines.Add(lines[i]);
@@ -77,7 +77,7 @@ public class HelperFunctions
         }
 
         // Write the modified lines back to the document
-        using (StreamWriter writer = new StreamWriter(file))
+        using (StreamWriter writer = new(file))
         {
             foreach (string line in lines)
             {

@@ -7,20 +7,61 @@ public interface ISchemaGenHandler
     /// Extracts and stores all XML elements by key among all provided documents, into a dictionary by element key, with Li keys being set to their parent key + "Li".
     /// </summary>
     /// <param name="fileDirectories">Directories of all files to be read.</param>
-    /// <returns>All elements found keyed by their XML key, with "<Li>" keys being set to their parent key + "Li </returns>
-    public static abstract Dictionary<string, List<XElement>> GetXMLNodes(List<string> fileDirectories);
+    /// <returns>All elements found keyed by their XML key, with "li" keys being set to their parent key + "Li" </returns>
+    public static abstract Dictionary<string, List<XElement>> GetXMLNodes(List<string> fileDirectories, string listElementMarker);
+    
+    /// <summary>
+    /// Extrapolates and concatenates all information except child/parent references (which are instead tracked in the tuple.Second).
+    /// </summary>
+    /// <param name="key">Key to assign to the collected elements.</param>
+    /// <param name="xElements">Elements to flatten together.</param>
+    /// <returns></returns>
+    public static abstract XElementStatistics FlattenXMLObject(string key, List<XElement> xElements, string listElementMarker);
+    
     /// <summary>
     /// Extrapolates all options for the given XML elements, then combines them into a dictionary keyed by the element's XML key, with Li keys being set to their parent key + "Li".
     /// </summary>
     /// <param name="xElements">All elements to extrapolate from.</param>
-    /// <returns>All like-keyed elements flattened into singlular representations of potential combinations, with "<Li>" keys being set to their parent key + "Li".</returns>
-    public static abstract Dictionary<string, XElementStatistics> FlattenXmlObjects(Dictionary<string, List<XElement>> xElements);
+    /// <returns>All like-keyed elements flattened into singlular representations of potential combinations, with "li" keys being set to their parent key + "Li".</returns>
+    public static abstract Dictionary<string, XElementStatistics> FlattenXmlObjects(Dictionary<string, List<XElement>> xElements, string listElementMarker);
+
     /// <summary>
-    /// Converts the provided flattened XML elements into an XSD family, with a central 'master' XSD of name outputName.
+    /// Generates an li-caught key compatible with CheckKeyIsLi.
     /// </summary>
-    /// <param name="xmlObjectsFlattened">The collection of all flattened XML elements.</param>
-    /// <param name="entryPoint">REFACTOR THIS!</param>
-    /// <param name="breakoffThreshhold">REFACTOR THIS!</param>
-    public static abstract void GenerateXSD(Dictionary<string, XElementStatistics> xmlObjectsFlattened, string entryPoint, int breakoffThreshhold, string outputName);
-    
+    /// <param name="element">The element to pull the parent of.</param>
+    /// <param name="listElementMarker">The marker to add to the key.</param>
+    /// <returns>The name of the provided element's parent with the given marker concatenated.</returns>
+    public static abstract string GetReplacementLiKey(XElement element, string listElementMarker);
+
+    /// <summary>
+    /// Checks if the provided key is li-caught.
+    /// </summary>
+    /// <param name="key">The key to check.</param>
+    /// <param name="listElementMarker">The marker to check the presence of.</param>
+    /// <returns>True if the key is li-caught, False if it is normal.</returns>
+    public static abstract bool CheckKeyIsLi(string key, string listElementMarker);
+
+    /// <summary>
+    /// Builds an XSD tag with the given key and attributes.
+    /// </summary>
+    /// <param name="key">The key of the tag.</param>
+    /// <param name="attributes">The collection of KVP attribute pairs</param>
+    /// <param name="closed">Whether the tag is self-closing.</param>
+    /// <returns>The built tag in returned.First, the closing tag in returned.Second (null if self-closing = true)</returns>
+    public static abstract Tuple<StringBuilder, StringBuilder> BuildElement(string key, Dictionary<string, string>? attributes = default, bool closed = false);
+
+    /// <summary>
+    /// Builds and returns a complexType block from a given elementStatistics.
+    /// </summary>
+    /// <param name="elementStatistics">The information to build a complex type with.</param>
+    /// <returns>The assembled complexType as a string.</returns>
+    public static abstract StringBuilder BuildComplexType(XElementStatistics elementStatistics);
+
+    /// <summary>
+    /// Builds and returns an XSD file from the given elementStatistics and string representing the contained complexType.
+    /// </summary>
+    /// <param name="elementStatistics">The information to build the XSD file for.</param>
+    /// <param name="complexType">The complexType to insert into the XSD file.</param>
+    /// <returns></returns>
+    public static abstract StringBuilder BuildXSDFile(XElementStatistics elementStatistics, StringBuilder complexType);
 }

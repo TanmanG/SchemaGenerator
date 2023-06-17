@@ -1,10 +1,12 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
 using System.Xml.Linq;
 
 public class SchemaGenHandler : ISchemaGenHandler
 {
     // CORE FUNCTIONS
-    public static Dictionary<string, List<XElement>> GetXMLNodes(List<string> fileDirectories)
+    
+    public static Dictionary<string, List<XElement>> GetXMLNodes(List<string> fileDirectories, string listElementMarker)
     {
         Dictionary<string, List<XElement>> nodesFound = new();
 
@@ -18,17 +20,16 @@ public class SchemaGenHandler : ISchemaGenHandler
             foreach (XElement element in xDocument.Descendants())
             {
                 string elementName = element.Name.LocalName;
-                string elementValue = element.Value;
-                string listElementMarker = "DelineatedListElement";
 
                 // Check if the element is an Li element
                 if (elementName.ToLower().Equals("li"))
                 { // Store it with its parent key
+
                     // Store parent name, catching top-level Li elements
-                    string parentName = (element.Parent?.Name.LocalName) ?? throw new NullReferenceException("Li element at top-level!");
-                    
+                    string liReplacementName = GetReplacementLiKey(element, listElementMarker);
+
                     // Store the newly keyed element.
-                    HelperFunctions.AddLD(dictionary: nodesFound, value: element, key: parentName + listElementMarker);
+                    HelperFunctions.AddLD(dictionary: nodesFound, value: element, key: liReplacementName);
                 }
                 else
                 { // Store the element normally
@@ -39,260 +40,299 @@ public class SchemaGenHandler : ISchemaGenHandler
 
         return nodesFound;
     }
-    public static Dictionary<string, XElementStatistics> FlattenXmlObjects(Dictionary<string, List<XElement>> xElements)
+
+    public static XElementStatistics FlattenXMLObject(string key, List<XElement> xElements, string listElementMarker)
+    {
+        // Track whether this is an Li element or not
+        bool isLi = CheckKeyIsLi(key, listElementMarker);
+
+        // Begin tracking the flattened element
+        XElementStatistics flattenedElement = new(key: key, isLi: isLi);
+
+        // Extrapolate!
+        foreach (XElement element in xElements)
+        {
+            // Pull the value
+            var convertedElementValues = element.Nodes().OfType<XText>().Select(text => text.ToString());
+            string elementValue = string.Join(separator: " ", convertedElementValues);
+            if (elementValue.Any())
+            {
+                flattenedElement.possibleValues.Add(elementValue);
+            }
+
+            // Pull the parent for later, but only when not null (should rarely happen)
+            string? parentName = element.Parent?.Name.LocalName;
+            if (parentName != null)
+            {
+                // Catch sneaky <li> nodes
+                if (parentName.ToLower().Equals("li"))
+                {
+                    // Store the parent's replaced Li's name
+                    string liReplacementName = GetReplacementLiKey(element.Parent, listElementMarker);
+                    flattenedElement.pendingParents.Add(liReplacementName);
+                }
+                else
+                {
+                    // Store the parent's name regularly
+                    flattenedElement.pendingParents.Add(parentName);
+                }
+            }
+
+            // Pull all children for later
+            var elementChildren = element.Elements();
+            // Check for any children
+            if (elementChildren.Any())
+            {
+                foreach (XElement child in elementChildren)
+                {
+                    // Catch sneaky <li> nodes
+                    if (child.Name.LocalName.ToLower().Equals("li"))
+                    {
+                        // Store the replaced Li's name
+                        string liReplacementName = GetReplacementLiKey(child, listElementMarker);
+                        flattenedElement.pendingChildren.Add(liReplacementName);
+                    }
+                    else
+                    {
+                        // Store the name regularly
+                        flattenedElement.pendingChildren.Add(child.Name.LocalName);
+                    }
+                }
+            }
+
+            // Pull all attribute KVPs
+            var elementAttributes = element.Attributes();
+            // Check for any attributes
+            if (elementAttributes.Any())
+            {
+                foreach (XAttribute attribute in element.Attributes())
+                {
+                    flattenedElement.possibleAttributes.TryAdd(attribute.Name.LocalName, attribute.Value);
+                }
+            }
+        }
+
+        // Check for complexity
+        if (flattenedElement.possibleParents.Any() || flattenedElement.possibleAttributes.Any())
+        {
+            flattenedElement.isComplex = true;
+        }
+        // Check for mixed
+        if (flattenedElement.possibleValues.Any()
+            && (flattenedElement.possibleParents.Any() || flattenedElement.possibleAttributes.Any()))
+        {
+            flattenedElement.isComplex = true;
+        }
+
+        // Return everything
+        return flattenedElement;
+    }
+    
+    public static Dictionary<string, XElementStatistics> FlattenXmlObjects(Dictionary<string, List<XElement>> xElements, string listElementMarker)
     {
         // Create a dictionary to store all the flattened elements
         Dictionary<string, XElementStatistics> flattenedXmlElements = new();
 
-        // Iterate over each XML element list by their key
-        foreach (KeyValuePair<string, List<XElement>> elementsOfLikeKey in xElements)
+        // Group by each key
+        foreach (var elementsOfLikeKey in xElements)
         {
-            // Store the currently iterate key
+            // Store references to the KVP contents
             string currentKey = elementsOfLikeKey.Key;
-            // Check if we're on an Li element
-            string listElementMarker = "DelineatedListElement";
-            bool currentKeyIsLi = currentKey.EndsWith(listElementMarker);
-            // Create a new flattened xmlObject
-            XElementStatistics flattenedXmlElement = new(elementsOfLikeKey.Key, isLi: currentKeyIsLi);
+            List<XElement> currentElements = elementsOfLikeKey.Value;
 
-            // Iterate over each element of the current key
-            foreach (XElement node in elementsOfLikeKey.Value)
+            // Flatten the current XML object
+            var flattenedElement = FlattenXMLObject(currentKey, currentElements, listElementMarker);
+
+            // And store it for later processing & return
+            flattenedXmlElements.Add(key: flattenedElement.key, flattenedElement);
+        }
+
+        // Link all elements from each object
+        foreach (var flattenedElement in flattenedXmlElements)
+        {
+            // Cache for performance
+            var currentFlattenedElement = flattenedElement.Value;
+            var currentKey = flattenedElement.Key;
+
+            // Link each child
+            foreach (var pendingChild in currentFlattenedElement.pendingChildren)
             {
-                // Map all attributes to the flattened xmlObject
-                // Iterate each attribute
-                foreach (var attributeKVP in node.Attributes())
-                {
-                    // We only need the keys for now
-                    flattenedXmlElement.possibleAttributes.Add(attributeKVP.Name.LocalName);
-                }
+                // Cache for performance
+                var addedChild = flattenedXmlElements[pendingChild];
 
-                // Map all children to the flattened xmlObject
-                // Iterate over each child
-                foreach (var child in node.Elements())
-                {
-                    flattenedXmlElement.possibleChildren.Add(child.Name.LocalName);
-                }
+                // Store the child
+                currentFlattenedElement.possibleChildren.Add(addedChild);
 
-                // Map all values to the flattened xmlObject
-                // Capture this node's value
-                if (node.Nodes().OfType<XText>().FirstOrDefault() != null)
-                    flattenedXmlElement.possibleValues.Add(item: node.Nodes().OfType<XText>().FirstOrDefault().Value);
+                // Also store the parent for optimization
+                addedChild.possibleParents.Add(currentFlattenedElement);
 
-                // Map all parents to the flattened xmlObject;
-                // Capture this node's parent
-                if (node?.Parent != null)
-                    flattenedXmlElement.possibleParents.Add(node.Parent.Name.LocalName);
+                // Remove this for a last once-over check
+                addedChild.pendingParents.Remove(currentKey);
             }
 
-            // Split the key into a simple and complex type if a conflict between simple and complex types is found
-            if (flattenedXmlElement.possibleValues.Count > 0 
-                && (flattenedXmlElement.possibleChildren.Count > 0 
-                    || flattenedXmlElement.possibleAttributes.Count > 0))
+            // Clear the children list for memory concerns
+            currentFlattenedElement.pendingChildren = default;
+        }
+
+        // Catch any remaining unlinked parents!
+        foreach (var flattenedElement in flattenedXmlElements)
+        {
+            var currentFlattenedElement = flattenedElement.Value;
+            var currentKey = flattenedElement.Key;
+
+            if (currentFlattenedElement.pendingParents.Any())
             {
-                string simpleKey = currentKey + "SimpleType";
-                XElementStatistics flattenedXmlElementSimple = new(key: simpleKey, isLi: currentKeyIsLi)
-                {
-                    possibleValues = flattenedXmlElement.possibleValues,
-                    possibleParents = flattenedXmlElement.possibleParents
-                    
-                };
-
-                string complexKey = currentKey + "ComplexType";
-                XElementStatistics flattenedXmlElementComplex = new(key: complexKey, isLi: currentKeyIsLi)
-                {
-                    possibleAttributes = flattenedXmlElement.possibleAttributes,
-                    possibleChildren = flattenedXmlElement.possibleChildren,
-                    possibleParents = flattenedXmlElement.possibleParents
-                };
-
-                flattenedXmlElements.Add(key: elementsOfLikeKey.Key, value: flattenedXmlElementSimple);
-                flattenedXmlElements.Add(key: elementsOfLikeKey.Key, value: flattenedXmlElementComplex);
+                Console.WriteLine("Warning: Found Ghost parent: " + currentKey);
             }
-            else
-            { // Store the xmlElement normally otherwise
-                flattenedXmlElements.Add(key: elementsOfLikeKey.Key, value: flattenedXmlElement);
-            }
-
         }
 
         return flattenedXmlElements;
     }
-    public static void GenerateXSD(Dictionary<string, XElementStatistics> xmlObjectsFlattened, string entryPoint, int breakoffThreshhold, string outputName)
+
+    public static string GetReplacementLiKey(XElement element, string listElementMarker)
     {
-        // DEBUG
-        Int128 iteration = 0;
-        // !DEBUG
+        return ((element.Parent?.Name.LocalName) ?? throw new NullReferenceException("Li element at top-level!")) + listElementMarker;
+    }
 
-        // Add the opening tag
-        StringBuilder returnedXSD = new();
-        returnedXSD.AppendLine(@"<?xml version=""1.0"" encoding=""utf-8""?>");
-        returnedXSD.AppendLine(@"<xs:schema targetNamespace=""http://rimworldmasterschema.com/rms"""
-                                            + @" attributeFormDefault=""unqualified"""
-                                            + @" elementFormDefault=""qualified"" xmlns:xs=""http://www.w3.org/2001/XMLSchema"""
-                                            + @" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"""
-                                            + @" xmlns:rwcs=""http://rimworldmasterschema.com/rwcs"">");
+    public static bool CheckKeyIsLi(string key, string listElementMarker)
+    {
+        // Calculate the theorhetical start point
+        int keyLength = key.Length;
+        int listElementMarkerLength = listElementMarker.Length;
 
-        // Instantiate tracking-stacks 
-        Stack<Tuple<string, int>> pendingXmlObjects = new();
-        Stack<Tuple<string, int>> closingTags = new();
-
-        // Set initial variables
-        int currentDepth = 0;
-        Dictionary<string, int> timesProcessed = new();
-        pendingXmlObjects.Push(new(entryPoint, currentDepth));
-
-        // Clear the schema and create a new writer
-        File.WriteAllText(path: "RimworldMasterSchema.xsd", contents: "");
-        var writer = File.AppendText("RimworldMasterSchema.xsd");
-
-        // Create a folder to hold child schemas
-        string schemasDirectory = Directory.GetCurrentDirectory() + @"\schemas\";
-        Directory.CreateDirectory(schemasDirectory);
-
-
-        while (pendingXmlObjects.Count > 0)
-        { // Iterate over every possible node path
-            var currentXmlObjectKVP = pendingXmlObjects.Pop();
-            var currentXmlObject = xmlObjectsFlattened[currentXmlObjectKVP.Item1];
-            currentDepth = currentXmlObjectKVP.Item2;
-
-            // Break each topmost schema into an individual file
-            if (currentDepth == 1)
-            {
-                // Push closing tags down to current depth
-                while (closingTags.Count > 0)
-                {
-                    returnedXSD.AppendLine(closingTags.Pop().Item1);
-                }
-
-                // Add the closing tag
-                returnedXSD.AppendLine(@"</xs:schema>");
-                // Write the old document
-                writer.Write(returnedXSD.ToString());
-
-                // Close the old writer stream
-                writer.Close();
-
-                // 
-                File.WriteAllText(path: schemasDirectory + currentXmlObject.key + ".xsd", contents: "");
-                returnedXSD = new();
-                writer = File.AppendText(schemasDirectory + currentXmlObject.key + ".xsd");
-
-                // Write the reference to this XSD in the original
-                var originalWriter = File.AppendText("RimworldMasterSchema.xsd");
-                originalWriter.WriteLine(@"<xsd:element ref=""rwcs:" + currentXmlObject.key + @"""/>");
-                originalWriter.Close();
-
-                // Write boilerplate
-                returnedXSD.AppendLine(@"<?xml version=""1.0"" encoding=""utf-8""?>");
-                returnedXSD.AppendLine(@"<xs:schema targetNamespace=""http://rimworldmasterschema.com/rwcs"" xmlns:rwcs=""http://rimworldmasterschema.com/rwcs"" xmlns:xs=""http://www.w3.org/2001/XMLSchema"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema"">");
-            }
-
-            // LOGGING
-            iteration++;
-            if (iteration % 1000 == 0)
-            {
-                Console.WriteLine("Value: " + iteration);
-            }
-            // !LOGGING
-
-            // Push closing tags down to current depth
-            while (closingTags.Count > 0 && closingTags.Peek().Item2 >= currentDepth)
-            {
-                returnedXSD.AppendLine(closingTags.Pop().Item1);
-            }
-
-            // Emergency Breakoff Point
-            //if (currentDepth > breakoffThreshhold)
-            //continue;
-
-            // Catch Li's, instead insert any
-            if (currentXmlObject.key.Equals("li"))
-            {
-                returnedXSD.AppendLine(@"<xsd:any minOccurs=""0"" maxOccurs=""unbounded"" processContents=""skip""/>");
-            }
-            // Write the info for this xmlObject
-            else if (currentXmlObject.possibleChildren.Count == 0 && currentXmlObject.possibleAttributes.Count == 0)
-            {
-                // To-do: Add type locking
-                returnedXSD.Append(@"<xs:element name=""");
-                returnedXSD.Append(currentXmlObject.key);
-                returnedXSD.Append(@""" type=""xs:");
-                returnedXSD.Append(currentXmlObject.possibleValues.All(
-                                                    xmlObject => int.TryParse(xmlObject, out var _) && xmlObject.Length > 0)
-                                                    ? "int"
-                                                    : "string");
-                returnedXSD.AppendLine(@"""/>");
-            }
-            else
-            {
-                bool hasChildren = currentXmlObject.possibleChildren.Count > 0;
-                bool hasAttributes = currentXmlObject.possibleAttributes.Count > 0;
-
-                // Write required tags for complex type
-                returnedXSD.Append(@"<xs:element name=""");
-                returnedXSD.Append(currentXmlObject.key);
-                returnedXSD.AppendLine(@""">");
-                returnedXSD.AppendLine(@"<xs:complexType>");
-
-                // String added to the closing tags, used to pile-on the </choice> and </attribute> tags
-                StringBuilder addedClosingTags = new();
-
-                returnedXSD.AppendLine(@"<xs:choice minOccurs=""0"" maxOccurs=""unbounded"">");
-
-                // Push children to continue looping
-                foreach (var child in currentXmlObject.possibleChildren)
-                {
-                    if (currentDepth + 1 < breakoffThreshhold)
-                    {
-                        pendingXmlObjects.Push(new(child, currentDepth + 1));
-                    }
-                }
-                addedClosingTags.AppendLine(@"</xs:choice>");
-
-                // Write any possible attributes
-                if (hasAttributes)
-                {
-                    foreach (var attribute in currentXmlObject.possibleAttributes)
-                    {
-                        addedClosingTags.Append(@"<xs:attribute name=""");
-                        addedClosingTags.Append(attribute);
-                        addedClosingTags.Append(@""" type=""xs:");
-                        addedClosingTags.Append(currentXmlObject.possibleAttributes.All(
-                                                    attribute => int.TryParse(attribute, out var _) && attribute.Length > 0)
-                                                    ? "int"
-                                                    : "string");
-                        addedClosingTags.AppendLine(@""" />");
-                    }
-                }
-
-
-                // Store the closing tags for this
-                closingTags.Push(new(addedClosingTags + @"</xs:complexType>" + "\n" + @"</xs:element>" + "\n", currentDepth));
-            }
-        }
-
-        // Push closing tags down to current depth
-        while (closingTags.Count > 0)
+        // Optimization to catch impossible length'd keys
+        if (keyLength < listElementMarkerLength)
         {
-            returnedXSD.AppendLine(closingTags.Pop().Item1);
+            return false;
         }
 
-        // Add the closing tag
-        returnedXSD.AppendLine(@"</xs:schema>");
+        // Store the entry point (e.g. "MARK" w/ "hiMARK" -> 6 - 4 = 2, str[2..] = MARK
+        int startIndexForLiCheck = keyLength - listElementMarkerLength;
 
-        writer.Write(returnedXSD);
-        writer.Close();
+        // Optimizations
+        return key[startIndexForLiCheck..].Equals(listElementMarker);
+    }
 
-        // Move generated elements in the master file, and generate the imports
-        HelperFunctions.MoveDocumentLines("RimworldMasterSchema.xsd", start: 11, destination: 6);
+    public static Tuple<StringBuilder, StringBuilder> BuildElement(string key, Dictionary<string, string>? attributes = null, bool selfClosed = false)
+    {
+        StringBuilder openingElement = new();
+        StringBuilder closingElement = null;
 
-        // Generate imports and move them into the master file
-        List<string> schemaImports = new();
-        foreach (string schema in Directory.GetFiles(schemasDirectory))
+        // Opening Element
+        openingElement.Append('<');
+        openingElement.Append(key);
+
+        foreach (var attribute in attributes)
         {
-            schemaImports.Add(@"<xs:import schemaLocation=""" + schema + @""" namespace=""http://rimworldmasterschema.com/rwcs""/>");
+            openingElement.Append(' ');
+            openingElement.Append(attribute.Key);
+            openingElement.Append(@"=""");
+            openingElement.Append(attribute.Value);
+            openingElement.Append(@"""");
         }
-        HelperFunctions.InsertDocumentLines(file: "RimworldMasterSchema.xsd", insertedLines: schemaImports, insertPosition: 3);
+
+        if (selfClosed)
+            openingElement.Append('/');
+        openingElement.Append('>');
+
+        if (!selfClosed)
+        { // Make the closing tag
+            // Closing Element
+            closingElement = new();
+            closingElement.Append(@"</");
+            closingElement.Append(key);
+            closingElement.Append('>');
+        }
+
+        return new(item1: openingElement, item2: closingElement);
+    }
+
+    public static StringBuilder BuildComplexType(XElementStatistics elementStatistics)
+    {
+        StringBuilder returnedElement = new();
+        Stack<string> closingElements = new();
+
+        // Build the opening tag w/ class-name
+        Dictionary<string, string> attributes = new()
+        {
+            { "name", elementStatistics.key },
+        };
+
+        // Track mixed-ness
+        if (elementStatistics.isMixed)
+        {
+            attributes.Add(key: "mixed", value: "true");
+        }
+
+        // Store the opening/closing tags
+        var currentTag = BuildElement(key: "complexType", attributes: attributes);
+        returnedElement.Append(currentTag.Item1);
+        closingElements.Push(currentTag.Item2.ToString());
+
+        // Check for children
+        if (elementStatistics.possibleChildren.Any())
+        {
+            // Store the choice element
+            attributes.Clear();
+            attributes.Add(key: "minOccurs", value: "0");
+            attributes.Add(key: "maxOccurs", value: "unbounded");
+            currentTag = BuildElement(key: "xs:choice", attributes: attributes);
+            returnedElement.Append(currentTag.Item1.Append('\n'));
+            closingElements.Push(currentTag.Item2.ToString());
+
+            // Store each child
+            foreach (var child in elementStatistics.possibleChildren)
+            {
+                attributes.Clear();
+                
+                // Store the name key, catching <li>s
+                string nameKey = child.isLi ? "li"
+                                            : child.key;
+                attributes.Add(key: "name", value: nameKey);
+                attributes.Add(key: "type", value: child.key);
+                
+                // Build the child element
+                currentTag = BuildElement(key: "xs:element", attributes : attributes, selfClosed: true);
+
+                // Store the child element
+                returnedElement.Append(currentTag.Item1.Append('\n'));
+            }
+            
+            // Close the choice element
+            returnedElement.AppendLine(closingElements.Pop());
+        }
+
+        // Check for attributes
+        if (elementStatistics.possibleAttributes.Any())
+        {
+            attributes.Clear();
+
+            // Store each attribute
+            foreach (var attribute in elementStatistics.possibleAttributes)
+            {
+                attributes.Add(key: "name", value: attribute.Key);
+                // To-do: Maybe use type inferrence instead of defaulting to string???
+                attributes.Add(key: "type", value: "xs:string");
+
+                // Build the attribute element
+                currentTag = BuildElement(key: "xs:attribute", attributes: attributes, selfClosed: true);
+
+                // Store the attribute element
+                returnedElement.Append(currentTag.Item1.Append('\n'));
+            }
+        }
+
+        // Add all closing elements
+        while (closingElements.Count > 0)
+        {
+            returnedElement.AppendLine(closingElements.Pop());
+        }
+
+        return returnedElement;
+    }
+
+    public static StringBuilder BuildXSDFile(XElementStatistics elementStatistics, StringBuilder complexType)
+    {
+        throw new NotImplementedException();
     }
 }

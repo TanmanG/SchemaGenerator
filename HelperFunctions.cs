@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+﻿using System.Text.RegularExpressions;
 
 namespace SchemaGenerator
 {
@@ -31,6 +25,7 @@ namespace SchemaGenerator
 
             return foundFiles;
         }
+        
         /// <summary>
         /// Moves lines in the given file to the chosen line.
         /// </summary>
@@ -89,6 +84,7 @@ namespace SchemaGenerator
                 }
             }
         }
+        
         /// <summary>
         /// Inserts the given lines of text at the given position in the given document.
         /// </summary>
@@ -118,6 +114,7 @@ namespace SchemaGenerator
             // Move the selected lines to the desired location in the file
             MoveDocumentLines(file: file, start: fileLength + 1, destination: insertPosition);
         }
+        
         /// <summary>
         /// Inserts the given value into the list at the given key, creating a new list if not present already.
         /// </summary>
@@ -138,12 +135,19 @@ namespace SchemaGenerator
             }
         }
 
+        /// <summary>
+        /// Validates whether the given string is valid as a filename.
+        /// </summary>
+        /// <param name="filename">Filename to validate.</param>
+        /// <returns>True if the filename provided is usable.</returns>
         public static bool CheckFilenameIsValid(string filename)
         {
-            // Try a general check
+            // Null filename & no filename check
             try
             {
-                _ = Path.GetFileName(filename);
+                if (Path.GetFileName(filename).Length == 0)
+                    return false;
+
             }
             catch (ArgumentException)
             {
@@ -156,41 +160,15 @@ namespace SchemaGenerator
                 return false;
             }
 
-            // Check the filename isn't breaking any rules
+            // Check the filename isn't breaking any rules (contains invalid characters)
             if (filename.IndexOfAny(Path.GetInvalidFileNameChars()) > 0)
             {
                 return false;
             }
 
+            // Check the target file is an XSD (ends with '.xsd').
             if (!XSDRegex().IsMatch(filename))
                 return false;
-
-            // All checks are clear!
-            return true;
-        }
-        public static bool CheckPathIsWellFormed(string path)
-        {
-            // Try a general checks
-            try
-            {
-                _ = Path.GetPathRoot(path);
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-
-            // Check if the given path isn't empty
-            if (path.Trim().Length == 0)
-            {
-                return false;
-            }
-
-            // Check if the path contains any invalid characters
-            if (path.IndexOfAny(Path.GetInvalidFileNameChars()) > 0)
-            {
-                return false;
-            }
 
             // All checks are clear!
             return true;

@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml.Linq;
 
@@ -11,7 +10,7 @@ namespace SchemaGenerator
         public static bool VERBOSE = true;
         public static int PROGRESS_INTERVAL = 3;
         public static string LIST_MARKER = "LI_MARKER";
-        public static string HELP =
+        private static readonly string HELP =
 @"Usage: SchemaGenerator.exe [OPTIONS] [ARGUMENTS]
 
 Description: A tool for taking a collection of RimWorld Defs and extrapolating an XSD from them.
@@ -209,7 +208,7 @@ SchemaGenerator.exe -o ""RWMasterSchema.xsd"" -i ""C:\Program Files (x86)\Steam\
 
             if (safeToReturn && path.Equals(string.Empty))
             {
-                if (VERBOSE) Console.WriteLine("STATUS: No path provided, defaulting to this executables' directory!");
+                if (VERBOSE) Console.WriteLine("STATUS: No path provided, defaulting to this executable's directory!");
                 path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             }
 

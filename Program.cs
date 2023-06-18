@@ -1,12 +1,4 @@
-﻿using Microsoft.VisualBasic;
-using SchemaGenerator;
-using System.Diagnostics;
-using System.Reflection;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml;
-using System.Xml.Linq;
+﻿using SchemaGenerator;
 
 
 internal class Program

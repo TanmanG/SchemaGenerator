@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SchemaGenerator": {
+      "commandName": "Project",
+      "commandLineArgs": "-i \"C:\\Program Files (x86)\\Steam\\steamapps\\common\\RimWorld\\Data\\Core\\Defs\" \"C:\\Program Files (x86)\\Steam\\steamapps\\common\\RimWorld\\Data\\Ideology\\Defs\" \"C:\\Program Files (x86)\\Steam\\steamapps\\common\\RimWorld\\Data\\Royalty\\Defs\" \"C:\\Program Files (x86)\\Steam\\steamapps\\common\\RimWorld\\Data\\Biotech\\Defs\" -o \"RimworldSchema.xsd\" --s -l 3"
+    }
+  }
+}
